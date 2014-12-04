@@ -1,144 +1,61 @@
-angular.module('jpn', ['ui.router'])
-.config(['$stateProvider', '$urlRouterProvider', function($stateProvider, $urlRouterProvider){
-  $stateProvider
-    .state('blog', {
-      url: '/blog',
-      resolve:{
-        postPromise:['posts', function(posts){
-          return posts.getAll();
-        }]
-      },
-      templateUrl: 'partials/blog.html',
-      controller:'BlogCtrl'
+'use strict';
+
+angular.module('jpn', ['ngRoute'])
+.config(['$routeProvider', '$locationProvider', function AppConfig($routeProvider, $locationProvider){
+
+  $routeProvider
+    .when('/landing', {
+      templateUrl: '/partials/landing.ejs',
+      controller: 'DefaultCtrl'
     })
-    .state('posts', {
-      url:'/posts/{id}',
-      resolve:{
-        post:['$stateParams', 'posts', function($stateParams, posts){
-          //console.log($stateParams.id);
-          return posts.get($stateParams.id);
-        }]
-      },
-      templateUrl:'partials/posts.html',
-      controller: 'PostsCtrl'
+    .when('/contact', {
+      templateUrl:'/partials/contact.ejs',
+      controller: 'ContactCtrl'
     })
-    .state('landing', {
-      url:'/landing',
-      templateUrl:'partials/landing.html',
-      controller:'DefaultCtrl',
+    .when('/post/:postId',{
+      templateUrl:'/partials/post_view.ejs',
+      controller:'PostCtrl'
     })
-    .state('about', {
-      url:'/about',
-      templateUrl:'partials/about.html',
-      controller:'DefaultCtrl',
-    })
-    .state('contact', {
-      url:'/contact',
-      templateUrl:'partials/contact.html',
-      controller:'DefaultCtrl',
+    .otherwise({
+      redirectTo:'/landing'
     })
 
-
-
-  $urlRouterProvider.otherwise('/landing')
-}])
-.factory('posts', ['$http', function($http){
-  var o = {
-    posts:[]
-  }
-  o.getAll = function(){
-    return $http.get('/posts').success(function(data){
-      angular.copy(data, o.posts);
-    });
-  };
-  o.create = function(post){
-    return $http.post('/posts', post).success(function(data){
-      o.posts.push(data);
-    });
-  };
-  o.upvote = function(post){
-    return $http.put('/posts/'+post._id + "/upvote")
-    .success(function(data){
-      post.upvotes += 1;
-    });
-  }
-  o.get = function(id){
-    return $http.get('/posts/'+id).then(function(res){
-      return res.data;
-    });
-  }
-
-  o.addComment = function(id, comment){
-    return $http.post('/posts/'+id+'/comments', comment);
-  };
-  o.upvoteComment = function( comment){
-    return $http.put('/comments/' + comment._id+'/upvote')
-    .success(function(data){
-      comment.upvotes += 1;
-    });
-  }
-
-  return o;
-
-}])
-.factory('postEmailForm', ['$http', function($http){
-  return {postEmail: function(emailData){
-    return $http.post("/postEmail/", emailData);
-  }}
-}])
-.controller("BlogCtrl",
- ['$scope', 'posts', function($scope, posts){
-   $scope.test  = "Hello World!";
-   $scope.title = '';
-   $scope.link = '';
-   $scope.posts = posts.posts;
-   $scope.addPost = function(){
-     if(!$scope.title || $scope.title === ''){return; }
-     posts.create({title:$scope.title, link:$scope.link});
-   }
-   $scope.incrementUpvotes = function(post) {
-     posts.upvote(post);
-   };
-
- }])
-.controller("PostsCtrl", [
-'$scope',
-'posts',
-'post',
-function($scope, posts, post){
-  $scope.posts = posts;
-  $scope.post = post;
-
-  $scope.addComment = function(){
-  if($scope.body === '') { return; }
-  console.log(posts);
-  posts.addComment(post._id, {
-    body: $scope.body,
-    author: 'user'
-  }).success(function(comment){
-    $scope.post.comments.push(comment);
-  });
-  $scope.body = '';
-  };
-
-  $scope.incrementUpvotes = function(comment) {
-    posts.upvoteComment(comment);
-  };
 }])
 .controller("DefaultCtrl",
-['$scope', 'postEmailForm', function($scope, postEmailForm){
-  $scope.css = 'landing-page';
-  $scope.user = {};
-  $scope.emailed = false;
-  $scope.contact = function(user){
-    var mail = {
-      from:user.email,
-      to:"ayekedavidr@wustl.edu",
-      subject:"Contact From JPN",
-      text:user.phone + ", " + user.message
-    };
-    $scope.emailed = postEmailForm.postEmail(mail);
-    console.log($scope.emailed);
-    $scope.emailed = true;
+['$scope', '$http', function($scope, $http){
+$http.get('/posts').success(function(data){
+  $scope.mainPost = data.splice(0,1)[0];
+  $scope.sidePost = data.splice(0,2);
+  $scope.posts = data;
+});
+}])
+.controller("ContactCtrl",
+['$scope', '$http', function($scope, $http){
+  $http.get('/members').success(function(data){
+    $scope.members = data;
+    $scope.index = 0;
+    $scope.previous = "";
+    $scope.current = $scope.members[0].name;
+    $scope.next = $scope.members[1].name;
+    console.log(data)
+  });
+  $scope.setIndex = function(i){
+    $scope.index = i;
+    if($scope.index < 0){
+      $scope.index = 0;
+      $scope.previous = "";
+      $scope.current = $scope.members[$scope.index].name;
+      $scope.next = ($scope.members[$scope.index+1])? $scope.members[$scope.index+1].name: "";
+    }else{
+      $scope.previous = $scope.members[$scope.index-1].name;
+      $scope.current = $scope.members[$scope.index].name;
+      $scope.next = ($scope.members[$scope.index+1])? $scope.members[$scope.index+1].name: "";
+    }
   }
-}]);
+}])
+.controller("PostCtrl", ["$scope", "$http","$routeParams", function($scope, $http, $routeParams){
+  $http.get('/posts').success(function(data){
+    $scope.mainPost = data[$routeParams.postId];
+  });
+}])
+;
